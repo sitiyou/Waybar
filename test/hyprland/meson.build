@@ -13,6 +13,7 @@ test_src = files(
     'backend.cpp',
     'workspace_identity.cpp',
     'workspace_order.cpp',
+    'workspace_layer.cpp',
     '../../src/modules/hyprland/backend.cpp',
     '../../src/modules/hyprland/workspace_identity.cpp'
 )

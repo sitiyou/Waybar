@@ -356,6 +356,9 @@ std::string IPC::buildLuaDispatch(const std::string& dispatcher, const std::stri
   // Old format:  dispatch togglespecialworkspace name
   // New format:  /dispatch hl.dsp.workspace.toggle_special("name")
 
+  if (dispatcher == "focusmonitor") {
+    return "/dispatch hl.dsp.focus({ monitor = \"" + arg + "\" })";
+  }
   if (dispatcher == "workspace") {
     return "/dispatch hl.dsp.focus({ workspace = \"" + arg + "\" })";
   }

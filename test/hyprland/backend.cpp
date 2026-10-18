@@ -161,6 +161,11 @@ TEST_CASE("getSocket1Reply failure paths do not leak fds", "[getSocket1Reply][fd
 
 // --- Tests for new Lua IPC dispatch functions ---
 
+TEST_CASE("buildLuaDispatch focusmonitor", "[buildLuaDispatch]") {
+  REQUIRE(IPCTestHelper::buildLuaDispatch("focusmonitor", "DP-3") ==
+          "/dispatch hl.dsp.focus({ monitor = \"DP-3\" })");
+}
+
 TEST_CASE("buildLuaDispatch workspace", "[buildLuaDispatch]") {
   SECTION("numeric workspace") {
     auto result = IPCTestHelper::buildLuaDispatch("workspace", "1");

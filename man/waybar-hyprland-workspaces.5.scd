@@ -12,6 +12,12 @@ The *workspaces* module displays the currently used workspaces in hyprland compo
 
 Addressed by *hyprland/workspaces*
 
+*workspace-layer-size*: ++
+	typeof: integer ++
+	default: 0 ++
+	A positive value N enables two layers of numeric workspaces: 1 through N and N+1 through 2N. Only workspaces in the layer of this bar's output are displayed. Special workspaces do not change the layer. When the output is outside these ranges, normal filtering applies. This option does not create persistent workspaces. ++
+	The workspace container has the CSS class *#workspaces.layer-1* or *#workspaces.layer-2* for the current layer. Workspace icon mappings continue to use the original IDs.
+
 *format*: ++
 	typeof: string ++
 	default: {name} ++

@@ -154,6 +154,9 @@ class Workspaces : public AModule, public EventHandler {
   void loadPersistentWorkspacesFromConfig(Json::Value const& clientsJson);
   void loadPersistentWorkspacesFromWorkspaceRules(const Json::Value& clientsJson);
 
+  int m_layerSize = 0;
+  int m_layerWorkspace = 0;
+
   bool m_allOutputs = false;
   bool m_showSpecial = false;
   bool m_activeOnly = false;

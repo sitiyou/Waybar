@@ -4,11 +4,13 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <limits>
 #include <memory>
 #include <sstream>
 #include <string>
 #include <utility>
 
+#include "modules/hyprland/workspace_layer.hpp"
 #include "util/regex_collection.hpp"
 #include "util/string.hpp"
 
@@ -672,6 +674,12 @@ auto Workspaces::parseConfig(const Json::Value& config) -> void {
     m_tooltipMap.emplace("", "");
   }
 
+  const auto& layerSize = config["workspace-layer-size"];
+  if (layerSize.isInt() && layerSize.asInt() > 0 &&
+      layerSize.asInt() <= std::numeric_limits<int>::max() / 2) {
+    m_layerSize = layerSize.asInt();
+  }
+
   populateBoolConfig(config, "all-outputs", m_allOutputs);
   populateBoolConfig(config, "show-special", m_showSpecial);
   populateBoolConfig(config, "special-visible-only", m_specialVisibleOnly);
@@ -1126,6 +1134,21 @@ void Workspaces::updateWorkspaceStates() {
   const std::vector<std::string> visibleWorkspaces = getVisibleWorkspaces();
   auto updatedWorkspaces = m_ipc.getSocket1JsonReply("workspaces");
 
+  if (m_layerSize > 0) {
+    m_layerWorkspace = 0;
+    for (const auto& monitor : m_ipc.getSocket1JsonReply("monitors")) {
+      if (monitor["name"].asString() != getBarOutput()) continue;
+      const auto active = parseWorkspaceIdentity(monitor["activeWorkspace"]);
+      if (active.has_value()) m_layerWorkspace = active->number().value_or(0);
+      break;
+    }
+    const auto layer = workspaceLayer(m_layerWorkspace, m_layerSize);
+    const auto style = m_box.get_style_context();
+    style->remove_class("layer-1");
+    style->remove_class("layer-2");
+    if (layer >= 0) style->add_class(layer == 0 ? "layer-1" : "layer-2");
+  }
+
   // A persistent-workspaces placeholder still carries the selector the user
   // wrote rather than a live address, so the active workspace is matched by
   // what it selects as well as by address.
@@ -1158,6 +1181,11 @@ void Workspaces::updateWorkspaceStates() {
       workspace->setOutput((*updatedWorkspace)["monitor"].asString());
     }
     workspace->update(workspaceIcon, workspaceTooltip);
+    const auto layer = workspaceLayer(m_layerWorkspace, m_layerSize);
+    if (m_layerSize > 0 && layer >= 0 && !workspace->isSpecial() &&
+        workspaceLayer(workspace->number().value_or(0), m_layerSize) != layer) {
+      workspace->button().hide();
+    }
   }
 }
 
