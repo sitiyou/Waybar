@@ -12,6 +12,12 @@ The *workspaces* module displays the currently used workspaces in hyprland compo
 
 Addressed by *hyprland/workspaces*
 
+*workspace-swap*: ++
+	typeof: bool ++
+	default: false ++
+	Enable integration with the Hyprland *hypr-workspace-swap* plugin. Each workspace 1–10 shares one numbered button with all its hidden bank workspaces, including special:1–special:10 and special:workspace-swap-<workspace>-<storage>. Storage numbers identify reusable slots, not bank numbers. A button remains available when its normal workspace is absent but any corresponding hidden workspace contains windows. Clicking a button focuses the normal workspace in its selected bank; it does not open hidden storage. No Hyprland workspaces or persistent rules are created. ++
+	Each numbered button has CSS class *bank-N* for its independently selected bank and *bank-alternate* when N is greater than 1. All ten selections are queried on initialization using *hl.plugin.workspace_swap.bank(workspace)*, including when Waybar starts with mixed bank selections, and updated from *workspace_swap* events carrying *workspace,bank*. Hidden bank workspaces do not get separate buttons, even with *show-special* enabled. Other workspace visibility and output filters still apply. Window counts and taskbar contents describe the selected bank, not hidden banks. Requires the plugin's Lua API and Hyprland's Lua configuration manager.
+
 *format*: ++
 	typeof: string ++
 	default: {name} ++
@@ -368,10 +374,37 @@ Additional to workspace name matching, the following *format-icons* can be set.
 }
 ```
 
+# Workspace banks
+
+Enable the plugin integration in the module configuration:
+
+```
+"hyprland/workspaces": {
+	"workspace-swap": true,
+	"sort-by": "number"
+}
+```
+
+Use different active colors in *style.css*:
+
+```
+#workspaces button.bank-1.active {
+	color: #a6e3a1;
+}
+#workspaces button.bank-alternate.active {
+	color: #cba6f7;
+}
+#workspaces button.bank-3.active {
+	color: #f9e2af;
+}
+```
+
 # Style
 
 - *#workspaces*
 - *#workspaces button*
+- *#workspaces button.bank-N* (the button's selected bank, with *workspace-swap* enabled)
+- *#workspaces button.bank-alternate* (bank greater than 1, with *workspace-swap* enabled)
 - *#workspaces button.active*
 - *#workspaces button.empty*
 - *#workspaces button.visible*

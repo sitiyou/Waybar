@@ -6,6 +6,7 @@
 #include <json/value.h>
 #include <sigc++/connection.h>
 
+#include <array>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -144,6 +145,8 @@ class Workspaces : public AModule, public EventHandler {
   void createWorkspacesToCreate();
   static std::vector<std::string> getVisibleWorkspaces();
   void updateWorkspaceStates();
+  Json::Value getWorkspaces();
+  void synchronizeBankWorkspaces();
   bool updateWindowsToCreate();
 
   void extendOrphans(const std::string& workspaceAddress, Json::Value const& clientsJson);
@@ -153,6 +156,9 @@ class Workspaces : public AModule, public EventHandler {
   void setCurrentMonitorId();
   void loadPersistentWorkspacesFromConfig(Json::Value const& clientsJson);
   void loadPersistentWorkspacesFromWorkspaceRules(const Json::Value& clientsJson);
+
+  bool m_workspaceSwap = false;
+  std::array<int, 10> m_activeBanks{};
 
   bool m_allOutputs = false;
   bool m_showSpecial = false;

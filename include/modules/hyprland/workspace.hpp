@@ -59,6 +59,7 @@ class Workspace {
   bool syncHoverClass();
   bool pointerInsideButton();
 
+  void setBank(int bank);
   void setActive(bool value = true) { m_isActive = value; };
   void setPersistentRule(bool value = true) { m_isPersistentRule = value; };
   void setPersistentConfig(bool value = true) { m_isPersistentConfig = value; };
@@ -87,6 +88,7 @@ class Workspace {
 
   WorkspaceIdentity m_identity;
   std::string m_prevNameClass;
+  int m_bank = 0;
   std::string m_output;
   uint m_windows;
   bool m_isActive = false;

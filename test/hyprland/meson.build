@@ -13,8 +13,10 @@ test_src = files(
     'backend.cpp',
     'workspace_identity.cpp',
     'workspace_order.cpp',
+    'workspace_bank.cpp',
     '../../src/modules/hyprland/backend.cpp',
-    '../../src/modules/hyprland/workspace_identity.cpp'
+    '../../src/modules/hyprland/workspace_identity.cpp',
+    '../../src/modules/hyprland/workspace_bank.cpp'
 )
 
 hyprland_test = executable(

@@ -88,6 +88,21 @@ void addOrRemoveClass(const Glib::RefPtr<Gtk::StyleContext>& context, bool condi
   }
 }
 
+void Workspace::setBank(int bank) {
+  if (bank == m_bank) {
+    return;
+  }
+  const auto style = m_button.get_style_context();
+  if (m_bank > 0) {
+    style->remove_class("bank-" + std::to_string(m_bank));
+  }
+  m_bank = bank;
+  if (m_bank > 0) {
+    style->add_class("bank-" + std::to_string(m_bank));
+  }
+  addOrRemoveClass(style, m_bank > 1, "bank-alternate");
+}
+
 std::optional<WindowRepr> Workspace::closeWindow(WindowAddress const& addr) {
   auto it = std::ranges::find_if(m_windowMap,
                                  [&addr](const auto& window) { return window.address == addr; });

@@ -9,6 +9,7 @@
 #include <string>
 #include <utility>
 
+#include "modules/hyprland/workspace_bank.hpp"
 #include "util/regex_collection.hpp"
 #include "util/string.hpp"
 
@@ -48,6 +49,17 @@ Workspaces::~Workspaces() {
 }
 
 void Workspaces::init() {
+  if (m_workspaceSwap) {
+    const auto banks = m_ipc.getSocket1JsonReply(
+        "repl local p = hl.plugin.workspace_swap; local banks = {}; "
+        "for i = 1, 10 do banks[i] = tostring(p and p.bank(i) or 0) end; "
+        "return '[' .. table.concat(banks, ',') .. ']'");
+    for (Json::ArrayIndex index = 0; index < m_activeBanks.size(); ++index) {
+      m_activeBanks[index] = banks.isArray() && index < banks.size() && banks[index].isInt()
+                                 ? std::max(0, banks[index].asInt())
+                                 : 0;
+    }
+  }
   if (const auto active = parseWorkspaceIdentity(m_ipc.getSocket1JsonReply("activeworkspace"));
       active.has_value()) {
     m_activeWorkspaceIdentifier = active->address;
@@ -93,6 +105,10 @@ void Workspaces::createWorkspace(Json::Value const& workspace_data,
   const auto identity = parseWorkspaceIdentity(workspace_data);
   if (!identity.has_value()) {
     spdlog::warn("Not creating workspace: payload carries no workspace identity");
+    return;
+  }
+  if (m_workspaceSwap && identity->kind == WorkspaceKind::Special &&
+      workspaceBankSlot(*identity).has_value()) {
     return;
   }
   const std::string& workspaceAddress = identity->address;
@@ -175,6 +191,9 @@ void Workspaces::doUpdate() {
 
   removeWorkspacesToRemove();
   createWorkspacesToCreate();
+  if (m_workspaceSwap) {
+    synchronizeBankWorkspaces();
+  }
   updateWorkspaceStates();
   updateWindowCount();
   sortWorkspaces();
@@ -238,7 +257,7 @@ void Workspaces::initializeWorkspaces() {
   }
 
   // get all current workspaces
-  auto const workspacesJson = m_ipc.getSocket1JsonReply("workspaces");
+  auto const workspacesJson = getWorkspaces();
   auto const clientsJson = m_ipc.getSocket1JsonReply("clients");
 
   for (const auto& workspaceJson : workspacesJson) {
@@ -343,7 +362,11 @@ void Workspaces::onEvent(const std::string& ev) {
     std::string eventName = ev.substr(0, separator);
     std::string payload = ev.substr(separator + 2);
 
-    if (eventName == "workspacev2") {
+    if (eventName == "workspace_swap" && m_workspaceSwap) {
+      if (const auto event = workspaceBankEvent(payload)) {
+        m_activeBanks[event->first - 1] = event->second;
+      }
+    } else if (eventName == "workspacev2") {
       onWorkspaceActivated(payload);
     } else if (eventName == "activespecial") {
       onSpecialWorkspaceActivated(payload);
@@ -409,7 +432,7 @@ void Workspaces::onWorkspaceCreated(std::string const& payload, Json::Value cons
   const auto [workspaceAddress, _] = splitDoublePayload(payload);
 
   auto const workspaceRules = m_ipc.getSocket1JsonReply("workspacerules");
-  auto const workspacesJson = m_ipc.getSocket1JsonReply("workspaces");
+  auto const workspacesJson = getWorkspaces();
 
   for (auto workspaceJson : workspacesJson) {
     const auto currentIdentity = parseWorkspaceIdentity(workspaceJson);
@@ -672,6 +695,7 @@ auto Workspaces::parseConfig(const Json::Value& config) -> void {
     m_tooltipMap.emplace("", "");
   }
 
+  populateBoolConfig(config, "workspace-swap", m_workspaceSwap);
   populateBoolConfig(config, "all-outputs", m_allOutputs);
   populateBoolConfig(config, "show-special", m_showSpecial);
   populateBoolConfig(config, "special-visible-only", m_specialVisibleOnly);
@@ -869,6 +893,9 @@ void Workspaces::registerOrphanWindow(WindowCreationPayload create_window_payloa
 }
 
 auto Workspaces::registerIpc() -> void {
+  if (m_workspaceSwap) {
+    m_ipc.registerForIPC("workspace_swap", this);
+  }
   m_ipc.registerForIPC("workspacev2", this);
   m_ipc.registerForIPC("activespecial", this);
   m_ipc.registerForIPC("createworkspacev2", this);
@@ -1077,8 +1104,49 @@ auto Workspaces::update() -> void {
       7);
 }
 
+Json::Value Workspaces::getWorkspaces() {
+  auto workspaces = m_ipc.getSocket1JsonReply("workspaces");
+  return m_workspaceSwap ? workspaceBankWorkspaces(workspaces) : workspaces;
+}
+
+void Workspaces::synchronizeBankWorkspaces() {
+  const auto workspaces = getWorkspaces();
+  const auto isOnBar = [this](const Json::Value& workspace) {
+    return (allOutputs() || workspace["monitor"].asString() == getBarOutput()) &&
+           !isWorkspaceIgnored(workspace["name"].asString());
+  };
+  std::vector<std::string> removed;
+  for (const auto& workspace : m_workspaces) {
+    if (workspace->isSpecial() || !workspaceBankSlot(workspace->identity()).has_value()) {
+      continue;
+    }
+    const auto found = std::ranges::find_if(workspaces, [&](const Json::Value& candidate) {
+      const auto identity = parseWorkspaceIdentity(candidate);
+      return identity.has_value() && identity->address == workspace->address() && isOnBar(candidate);
+    });
+    if (found == workspaces.end()) {
+      removed.push_back(workspace->address());
+    }
+  }
+  for (const auto& address : removed) {
+    removeWorkspace(address);
+  }
+  for (const auto& workspace : workspaces) {
+    const auto identity = parseWorkspaceIdentity(workspace);
+    if (!identity.has_value() || identity->kind != WorkspaceKind::Numbered ||
+        !workspaceBankSlot(*identity).has_value() || !isOnBar(workspace)) {
+      continue;
+    }
+    createWorkspace(workspace);
+    const auto existing = findWorkspace(identity->address);
+    if (existing != m_workspaces.end()) {
+      (*existing)->setIdentity(*identity);
+    }
+  }
+}
+
 void Workspaces::updateWindowCount() {
-  const Json::Value workspacesJson = m_ipc.getSocket1JsonReply("workspaces");
+  const Json::Value workspacesJson = getWorkspaces();
   for (auto const& workspace : m_workspaces) {
     auto workspaceJson = std::ranges::find_if(workspacesJson, [&](Json::Value const& x) {
       const auto identity = parseWorkspaceIdentity(x);
@@ -1124,7 +1192,7 @@ bool Workspaces::updateWindowsToCreate() {
 
 void Workspaces::updateWorkspaceStates() {
   const std::vector<std::string> visibleWorkspaces = getVisibleWorkspaces();
-  auto updatedWorkspaces = m_ipc.getSocket1JsonReply("workspaces");
+  auto updatedWorkspaces = getWorkspaces();
 
   // A persistent-workspaces placeholder still carries the selector the user
   // wrote rather than a live address, so the active workspace is matched by
@@ -1132,6 +1200,11 @@ void Workspaces::updateWorkspaceStates() {
   const auto activeIdentity = parseWorkspaceIdentity(m_ipc.getSocket1JsonReply("activeworkspace"));
 
   for (auto& workspace : m_workspaces) {
+    if (m_workspaceSwap) {
+      const auto slot =
+          workspace->isSpecial() ? std::nullopt : workspaceBankSlot(workspace->identity());
+      workspace->setBank(slot ? m_activeBanks[*slot - 1] : 0);
+    }
     workspace->setActive(
         workspace->identity().matches(m_activeWorkspaceIdentifier) ||
         (activeIdentity.has_value() &&

@@ -346,6 +346,7 @@ if true
         'src/modules/hyprland/windowcount.cpp',
         'src/modules/hyprland/workspace.cpp',
         'src/modules/hyprland/workspace_identity.cpp',
+        'src/modules/hyprland/workspace_bank.cpp',
         'src/modules/hyprland/workspaces.cpp',
         'src/modules/hyprland/windowcreationpayload.cpp',
     )
